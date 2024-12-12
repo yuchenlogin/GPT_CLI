@@ -48,7 +48,7 @@ class Config:
         self.api_organization = c.get("api_organization") or openai.organization
         self.model = c.get("model", "gpt-3.5-turbo")
         self.prompt = c.get("prompt", [])
-        self.stream = c.get("stream", False)
+        self.official = c.get("official", False)
         self.stream_render = c.get("stream_render", False)
         self.context = ContextLevel(c.get("context", 0))
         self.proxy = c.get("proxy", "")
@@ -89,7 +89,7 @@ class GptCli(cmd2.Cmd):
         self.add_settable(Settable("api_organization", str, "OPENAI_API_ORGANIZATION", self.config, onchange_cb=self.openai_set))
         self.add_settable(Settable("context", lambda v: ContextLevel(int(v)), "Session context mode",
                                    self.config, completer=partial(cmd2.Cmd.basic_complete, match_against="012")))
-        self.add_settable(Settable("stream", bool, "Enable stream mode", self.config))
+        self.add_settable(Settable("official", bool, "Enable official mode", self.config))
         self.add_settable(Settable("stream_render", bool, "Render live markdown in stream mode", self.config))
         self.add_settable(Settable("model", str, "OPENAI model", self.config))
         self.add_settable(Settable("showtokens", bool, "Show tokens used with the output", self.config))
@@ -155,7 +155,7 @@ class GptCli(cmd2.Cmd):
         if not content:
             return
         self.session.append({"role": "user", "content": content})
-        if self.config.stream==False:
+        if self.config.official==False:
             answer = self.query_custom_api(self.messages)
         else:
             answer = self.query_openai_stream(self.messages)
@@ -360,7 +360,7 @@ class GptCli(cmd2.Cmd):
         if self.config.proxy:
             self.print("Proxy:", self.config.proxy)
         self.print("Context level:", self.config.context)
-        self.print("Stream mode:", self.config.stream)
+        self.print("Official mode:", self.config.official)
 
     parser_save = argparse_custom.DEFAULT_ARGUMENT_PARSER()
     parser_save.add_argument("-m", dest="mode", choices=["json", "md"],

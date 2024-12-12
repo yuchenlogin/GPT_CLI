@@ -5,7 +5,7 @@
     "api_version": null,
     "model": "gpt-4o-mini",
     "context": 1,
-    "stream": false,
+    "official": false,
     "stream_render": true,
     "showtokens": false,
     "proxy": "",
