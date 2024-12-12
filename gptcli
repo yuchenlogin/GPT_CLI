@@ -1,7 +1,13 @@
 #!/bin/bash
 
-cd /home/yuchen/git/gptcli
+cd /home/yuchen/git/GPT_CLI
 
-source GPTCLI_env/bin/activate 
+source GPTCLI_env/bin/activate
+
+# 检查虚拟环境是否激活成功
+if [[ -z "$VIRTUAL_ENV" ]]; then
+  echo "Error: Failed to activate virtual environment."
+  exit 1
+fi
 
 python3 gptcli.py

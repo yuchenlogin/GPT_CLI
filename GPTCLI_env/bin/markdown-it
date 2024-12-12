@@ -1,4 +1,4 @@
-#!/home/yuchen/git/gptcli/GPTCLI_env/bin/python3
+#!/home/yuchen/git/GPT_CLI/GPTCLI_env/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

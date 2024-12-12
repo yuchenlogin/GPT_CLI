@@ -10,6 +10,7 @@ import requests
 from functools import partial
 from argparse import Namespace
 from typing import List
+import openai
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -18,8 +19,6 @@ from rich.table import Table
 
 import cmd2
 from cmd2 import argparse_custom, with_argparser, Settable
-
-import openai
 
 class ContextLevel(enum.Enum):
     NONE = 0
@@ -80,23 +79,8 @@ class GptCli(cmd2.Cmd):
             self.remove_settable(sk)
         self.console = Console()
         self.session = []
-        # Init config
-        self.print("Loading config from:", config)
         self.config = Config(config)
-        for opt in ["key", "base", "type", "version", "organization"]:
-            opt = f"api_{opt}"
-            val = getattr(self.config, opt)
-            setattr(openai, opt, val)
-            if opt == "api_key" and len(val) > 7:
-                val = val[:7] + "*" * 5
-            self.print(f"openai.{opt}={val}")
-        if self.config.proxy:
-            self.print("Proxy:", self.config.proxy)
-            openai.proxy = self.config.proxy
-        self.print("Context level:", self.config.context)
-        self.print("Stream mode:", self.config.stream)
-        # Init settable
-        # NOTE: proxy is not settable in runtime since openai use pre-configured session
+    
         self.add_settable(Settable("api_key", str, "OPENAI_API_KEY", self.config, onchange_cb=self.openai_set))
         self.add_settable(Settable("api_base", str, "OPENAI_API_BASE", self.config, onchange_cb=self.openai_set))
         self.add_settable(Settable("api_type", str, "OPENAI_API_TYPE", self.config, onchange_cb=self.openai_set,
@@ -111,7 +95,7 @@ class GptCli(cmd2.Cmd):
         self.add_settable(Settable("showtokens", bool, "Show tokens used with the output", self.config))
         # MISC
         with self.console.capture() as capture:
-            self.print(f"[bold yellow]{self.prompt}[/]", end="")
+            self.print(f"[bold blue]{self.prompt}[/]", end="")
         self.prompt = capture.get()
 
         self.single_tokens_used = 0
@@ -120,14 +104,17 @@ class GptCli(cmd2.Cmd):
         self.print("\n[bold blue]欢迎使用 GPT CLI![/]\n")
         self.print("[green]这是一个基于 OpenAI API 的命令行界面，可以与大型语言模型进行交互。[/]\n")
         self.print("[bold magenta]可用命令：[/]")
-        self.print("  [cyan].help:[/] [yellow]查看所有可用命令的帮助信息[/]")
-        self.print("  [cyan].multiline:[/] [yellow]输入多行文本[/]")
+        self.print("  [cyan].help:[/] [yellow]查看所有可用命令[/]")
+        self.print("  [cyan].detail:[/] [yellow]查看配置参数信息[/]")
         self.print("  [cyan].reset:[/] [yellow]重置会话[/]")
-        self.print("  [cyan].prompt:[/] [yellow]加载或管理提示词[/]")
-        self.print("  [cyan].save:[/] [yellow]保存当前会话[/]")
-        self.print("  [cyan].load:[/] [yellow]加载会话[/]")
-        self.print("  [cyan].usage:[/] [yellow]查看令牌使用情况[/]")
+        self.print("  [cyan].prompt:[/] [yellow]加载或管理提示词(输入查看用法)[/]")
+        self.print("  [cyan].save <filename>:[/] [yellow]保存当前会话[/]")
+        self.print("  [cyan].load <filename>:[/] [yellow]加载会话[/]")
+        self.print("  [cyan].usage:[/] [yellow]查看使用情况[/]")
         self.print("  [cyan].exit/.quit:[/] [yellow]退出程序[/]\n")
+        
+    def print(self, *msg, **kwargs):
+        self.console.print(*msg, **kwargs)
 
     def openai_set(self, param, old, new):
         # self.print(f"openai.{param} = {old} -> {new}")
@@ -164,17 +151,14 @@ class GptCli(cmd2.Cmd):
     def get_all_commands(self) -> List[str]:
         return list(map(lambda c: f".{c}", super().get_all_commands()))
 
-    def print(self, *msg, **kwargs):
-        self.console.print(*msg, **kwargs)
-
     def handle_input(self, content: str):
         if not content:
             return
         self.session.append({"role": "user", "content": content})
-        if self.config.stream == False:
+        if self.config.stream==False:
             answer = self.query_custom_api(self.messages)
         else:
-            answer = self.query_openai(self.messages)
+            answer = self.query_openai_stream(self.messages)
         if not answer:
             self.session.pop()
         else:
@@ -241,22 +225,6 @@ class GptCli(cmd2.Cmd):
                     num_tokens += -1  # role is always required and always 1 token
         num_tokens += 2  # every reply is primed with <im_start>assistant
         return num_tokens
-
-    def query_openai(self, messages) -> str:
-        try:
-            response = openai.ChatCompletion.create(
-                model=self.config.model,
-                messages=messages
-            )
-            content = response["choices"][0]["message"]["content"]
-            self.print(Markdown(content), Config.sep)
-
-            self.single_tokens_used = response["usage"]["total_tokens"]
-            self.total_tokens_used += self.single_tokens_used
-            return content
-        except openai.error.OpenAIError as e:
-            self.print("OpenAIError1:", e)
-        return ""
     
 
     def query_custom_api(self, messages) -> str:
@@ -334,23 +302,6 @@ class GptCli(cmd2.Cmd):
         self.total_tokens_used += self.single_tokens_used
         return answer
 
-    parser_ml = argparse_custom.DEFAULT_ARGUMENT_PARSER()
-    @with_argparser(parser_ml)
-    def do_multiline(self, args):
-        "input multiple lines, end with ctrl-d(Linux/macOS) or ctrl-z(Windows). Cancel with ctrl-c"
-        contents = []
-        while True:
-            try:
-                line = input("> ")
-            except EOFError:
-                self.print("--- EOF ---")
-                break
-            except KeyboardInterrupt:
-                self.print("^C")
-                return
-            contents.append(line)
-        self.handle_input("\n".join(contents))
-
     parser_reset = argparse_custom.DEFAULT_ARGUMENT_PARSER()
     @with_argparser(parser_reset)
     def do_reset(self, args):
@@ -365,6 +316,12 @@ class GptCli(cmd2.Cmd):
     @with_argparser(parser_prompt)
     def do_prompt(self, args: Namespace):
         "Load different prompts"
+        
+        self.print("Usage:")
+        self.print("    .prompt                 # View the current prompt.")
+        self.print("    .prompt <file>         # Load a prompt from a file (plain text or JSON)")
+        self.print("    .prompt -c             # Clear the current prompt.")
+        
         if args.clear:
             self.config.prompt.clear()
             self.print("Prompt cleared.")
@@ -389,6 +346,22 @@ class GptCli(cmd2.Cmd):
             self.config.prompt = prompt
         else:
             self.print("Current prompt:", json.dumps(self.config.prompt, indent=2, ensure_ascii=False))
+            
+    parser_detail = argparse_custom.DEFAULT_ARGUMENT_PARSER()        
+    @with_argparser(parser_detail)
+    def do_detail(self, args):
+        """显示详细的配置信息"""
+        self.print("Loaded config from:", self.config.default)
+        for opt in ["key", "base", "type", "version", "organization"]:
+            opt = f"api_{opt}"
+            val = getattr(self.config, opt)
+            if opt == "api_key" and len(val) > 7:
+                val = val[:7] + "*" * 5
+            self.print(f"openai.{opt}={val}")
+        if self.config.proxy:
+            self.print("Proxy:", self.config.proxy)
+        self.print("Context level:", self.config.context)
+        self.print("Stream mode:", self.config.stream)
 
     parser_save = argparse_custom.DEFAULT_ARGUMENT_PARSER()
     parser_save.add_argument("-m", dest="mode", choices=["json", "md"],
@@ -426,6 +399,7 @@ class GptCli(cmd2.Cmd):
         "Tokens usage of current session / last N days, or print detail billing info"
         if args.days is None and not args.billing:
             self.print(f"Total tokens used this session: {self.total_tokens_used}")
+            self.print("Current Fee: Free of charge")
             return
         headers = {"Authorization": f"Bearer {self.config.api_key}"}
         proxies = {}
