@@ -3,7 +3,7 @@
     "api_base": "https://api.chatanywhere.tech/v1/chat/completions",
     "api_type": "chatanywhere",
     "api_version": null,
-    "model": "gpt-3.5-turbo",
+    "model": "gpt-4o-mini",
     "context": 1,
     "stream": false,
     "stream_render": true,
