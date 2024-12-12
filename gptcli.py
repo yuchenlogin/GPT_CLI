@@ -107,7 +107,7 @@ class GptCli(cmd2.Cmd):
         self.print("  [cyan].help:[/] [yellow]查看所有可用命令[/]")
         self.print("  [cyan].detail:[/] [yellow]查看配置参数信息[/]")
         self.print("  [cyan].reset:[/] [yellow]重置会话[/]")
-        self.print("  [cyan].prompt:[/] [yellow]加载或管理提示词(输入查看用法)[/]")
+        self.print("  [cyan].prompt:[/] [yellow]加载或管理提示词(Type to check usage)[/]")
         self.print("  [cyan].save <filename>:[/] [yellow]保存当前会话[/]")
         self.print("  [cyan].load <filename>:[/] [yellow]加载会话[/]")
         self.print("  [cyan].usage:[/] [yellow]查看使用情况[/]")
