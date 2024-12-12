@@ -59,7 +59,7 @@ class Config:
 
 
 class GptCli(cmd2.Cmd):
-    prompt = "gptcli> "
+    prompt = "cli@ChatGPT> "
 
     def __init__(self, config):
         super().__init__(
