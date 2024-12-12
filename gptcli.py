@@ -103,13 +103,13 @@ class GptCli(cmd2.Cmd):
         
         self.print("\n[bold blue]欢迎使用 GPT CLI![/]\n")
         self.print("[green]这是一个基于 OpenAI API 的命令行界面，可以与大型语言模型进行交互。[/]\n")
-        self.print("[bold magenta]可用命令：[/]")
+        self.print("[bold magenta]可用命令：(<command> -h 以获得更多帮助)[/]")
         self.print("  [cyan].help:[/] [yellow]查看所有可用命令[/]")
         self.print("  [cyan].detail:[/] [yellow]查看配置参数信息[/]")
         self.print("  [cyan].reset:[/] [yellow]重置会话[/]")
-        self.print("  [cyan].prompt:[/] [yellow]加载或管理提示词(Type to check usage)[/]")
-        self.print("  [cyan].save <filename>:[/] [yellow]保存当前会话[/]")
-        self.print("  [cyan].load <filename>:[/] [yellow]加载会话[/]")
+        self.print("  [cyan].prompt:[/] [yellow]加载或管理提示词[/]")
+        self.print("  [cyan].save:[/] [yellow]保存当前会话[/]")
+        self.print("  [cyan].load:[/] [yellow]加载会话[/]")
         self.print("  [cyan].usage:[/] [yellow]查看使用情况[/]")
         self.print("  [cyan].exit/.quit:[/] [yellow]退出程序[/]\n")
         
@@ -202,31 +202,7 @@ class GptCli(cmd2.Cmd):
             data = Config.mdSep.join(chats)
         with open(file, "w", encoding=encoding) as f:
             f.write(data)
-    
-    # Reference:
-    # https://platform.openai.com/docs/guides/chat/managing-tokens
-    def num_tokens_from_messages(self, messages):
-        """Returns the number of tokens used by a list of messages."""
-        import tiktoken
-        model = self.config.model
-        try:
-            encoding = tiktoken.encoding_for_model(model)
-        except KeyError:
-            encoding = tiktoken.get_encoding("cl100k_base")
-        if model not in ["gpt-3.5-turbo", "gpt-4", "gpt-4-32k"]:  # note: future models may deviate from this
-            self.print(f"""num_tokens_from_messages() is not presently implemented for model {model}.
-        See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
-        num_tokens = 0
-        for message in messages:
-            num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
-            for key, value in message.items():
-                num_tokens += len(encoding.encode(value))
-                if key == "name":  # if there's a name, the role is omitted
-                    num_tokens += -1  # role is always required and always 1 token
-        num_tokens += 2  # every reply is primed with <im_start>assistant
-        return num_tokens
-    
-
+              
     def query_custom_api(self, messages) -> str:
         try:
             url = "https://api.chatanywhere.tech/v1/chat/completions"
@@ -270,6 +246,29 @@ class GptCli(cmd2.Cmd):
         except Exception as e:
             self.print(f"发生意外错误: {e}")
             return ""
+    
+    # Reference:
+    # https://platform.openai.com/docs/guides/chat/managing-tokens
+    def num_tokens_from_messages(self, messages):
+        """Returns the number of tokens used by a list of messages."""
+        import tiktoken
+        model = self.config.model
+        try:
+            encoding = tiktoken.encoding_for_model(model)
+        except KeyError:
+            encoding = tiktoken.get_encoding("cl100k_base")
+        if model not in ["gpt-3.5-turbo", "gpt-4", "gpt-4-32k"]:  # note: future models may deviate from this
+            self.print(f"""num_tokens_from_messages() is not presently implemented for model {model}.
+        See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens.""")
+        num_tokens = 0
+        for message in messages:
+            num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
+            for key, value in message.items():
+                num_tokens += len(encoding.encode(value))
+                if key == "name":  # if there's a name, the role is omitted
+                    num_tokens += -1  # role is always required and always 1 token
+        num_tokens += 2  # every reply is primed with <im_start>assistant
+        return num_tokens
 
     def query_openai_stream(self, messages) -> str:
         answer = ""
